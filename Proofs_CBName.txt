@@ -1,0 +1,358 @@
+
+---------------------------------------------------
+------- thunkCBName m >>= forceCBName === m -------
+---------------------------------------------------
+
+thunkCBName m >>= forceCBName 
+=
+Pure (CBName m) >>= forceCBName
+=
+fold forceCBName Op (Pure (CBName m))
+=
+forceCBName (CBName m)
+=
+m
+
+
+---------------------------------------------------
+---- let x v m === M[V/x] (App v (Lambda x m)) ----
+---------------------------------------------------
+
+
+denoteCBName env (let x v m)
+=
+do
+  v' <- thunkCBName (denoteCBName env v)
+  denoteCBName (extendEnv x v' env) m
+=
+denoteCBName (extendEnv x (Pure (CBName (denoteCBName env v))) env) m
+=
+denoteCBName (Env ((x, (denoteCBName env v)) : env))  m
+
+
+
+denoteCBName env (App v (Lambda x m))
+=
+do
+  v1 <- thunkCBName (denoteCBName env v)
+  v2 <- denoteCBName env (Lambda x m)
+  case v2 of
+    (VFun (Pure f)) -> apply f v1
+    _ -> undefined
+=
+do
+  v1 <- thunkCBName (denoteCBName env v)
+  v2 <- denoteCBName env (Lambda x m)
+  case v2 of
+    (VFun (Pure f)) -> apply f v1
+    _ -> undefined
+
+do
+  v1 <- denoteCBName env v
+  v2 <- denoteCBName env (Lambda x m)
+  case v2 of
+    (VFun (Pure f)) -> apply f v2
+    _ -> undefined
+
+=
+  v1 <- denoteCBName env v
+  v2 <- Pure (VFun (Pure (Fun (\v -> do
+    v' <- thunkCBName (Pure v)
+    denoteCBName (extendEnv x v' env) m
+  ))))
+  case v2 of
+    (VFun (Pure f)) -> apply f v2
+    _ -> undefined
+=
+  apply (Fun (\v -> do
+    v' <- thunkCBName (Pure v)
+    denoteCBName (extendEnv x v' env) m
+  )) (denoteCBName env v)
+=  
+  denoteCBName (extendEnv x (Pure (CBName (denoteCBName env v))) env) m
+=
+  denoteCBName (Env ((x, (denoteCBName env v)) : env)) m
+
+
+
+-------------------------------------------------------------------
+---- denoteCBName env m === denoteCBName env (let x m (Var x)) ----
+-------------------------------------------------------------------
+
+
+denoteCBName env (let x m (Var x))
+=
+do
+  v <- thunkCBName (denoteCBName env m)
+  denoteCBName (extendEnv x v env) (Var x)
+=
+do
+  v <- Pure (CBName (denoteCBName env m))
+  denoteCBName (extendEnv x v env) (Var x)
+=
+  denoteCBName (extendEnv x Pure (CBName (denoteCBName env m)) env) (Var x)
+=  
+  denoteCBName (extendEnv x (CBName (denoteCBName env m)) env) (Var x)
+= 
+  denoteCBName (Env ((x, (CBName (denoteCBName env m))) : env)) (Var x)
+= 
+  forceCBName (CBName (denoteCBName env m))
+= 
+  denoteCBName env m 
+
+
+------------------------------------------------------------------------------------
+---- pm (Inl v) (VInl (Lambda x m1)) (Inr (Lambda x m2)) == App v (Lambda x m1) ----
+------------------------------------------------------------------------------------
+
+denoteCBName env (pm (Inl v) (Inl (Lambda x m1)) (Inr (Lambda x m2)))
+=
+do 
+  v` <- (do
+    v` <- thunkCBName (denoteCBName env v) 
+    return (VInl v`))
+  case v of
+    VInl val -> denoteCBName (extendEnv x val env) m1
+    VInr val -> denoteCBName (extendEnv y val env) m2
+    _ -> undefined
+=
+do 
+  v` <- (return (VInl (CBName (denoteCBName env v))))
+  case v` of
+    VInl val -> denoteCBName (extendEnv x val env) m1
+    VInr val -> denoteCBName (extendEnv y val env) m2
+    _ -> undefined
+=
+do 
+  v` <- (return (VInl (CBName (denoteCBName env v))))
+  case v` of
+    VInl val -> denoteCBName (extendEnv x val env) m1
+    VInr val -> denoteCBName (extendEnv y val env) m2
+    _ -> undefined
+=
+case (VInl (CBName (denoteCBName env v))) of
+    VInl val -> denoteCBName (extendEnv x val env) m1
+    VInr val -> denoteCBName (extendEnv y val env) m2
+    _ -> undefined
+=
+denoteCBName (Env ((x, (denoteCBName env v)) : env)) m1
+
+
+denoteCBName env (App v (Lambda x m1))
+=
+do
+  v1 <- thunkCBName (denoteCBName env v)
+  v2 <- denoteCBName env (Lambda x m1)
+  case v2 of
+    (VFun (Pure f)) -> apply f v1
+    _ -> undefined
+=
+do
+  v1 <- thunkCBName (denoteCBName env v)
+  v2 <- denoteCBName env (Lambda x m1)
+  case v2 of
+    (VFun (Pure f)) -> apply f v1
+    _ -> undefined
+
+do
+  v1 <- denoteCBName env v
+  v2 <- denoteCBName env (Lambda x m1)
+  case v2 of
+    (VFun (Pure f)) -> apply f v2
+    _ -> undefined
+
+=
+  v1 <- denoteCBName env v
+  v2 <- Pure (VFun (Pure (Fun (\v -> do
+    v' <- thunkCBName (Pure v)
+    denoteCBName (extendEnv x v' env) m1
+  ))))
+  case v2 of
+    (VFun (Pure f)) -> apply f v2
+    _ -> undefined
+=
+  apply (Fun (\v -> do
+    v' <- thunkCBName (Pure v)
+    denoteCBName (extendEnv x v' env) m1
+  )) (denoteCBName env v)
+=  
+  denoteCBName (extendEnv x (Pure (CBName (denoteCBName env v))) env) m1
+=
+  denoteCBName (Env ((x, (denoteCBName env v)) : env)) m1
+
+
+------------------------------------------------------------------------------------
+---- pm (Inr v) (Inl (Lambda x m1)) (Inr (Lambda x m2)) == App v (Lambda x m1) ----
+------------------------------------------------------------------------------------
+
+denoteCBName env (pm (Inr v) (Inl (Lambda x m1)) (Inr (Lambda x m2)))
+=
+do 
+  v` <- (do
+    v` <- thunkCBName (denoteCBName env v) 
+    return (VInr v`)) 
+  case v of
+    VInl val -> denoteCBName (extendEnv x val env) m1
+    VInr val -> denoteCBName (extendEnv y val env) m2
+    _ -> undefined
+=
+do 
+  v` <- (return (VInr (CBName (denoteCBName env v))))
+  case v` of
+    VInl val -> denoteCBName (extendEnv x val env) m1
+    VInr val -> denoteCBName (extendEnv y val env) m2
+    _ -> undefined
+=
+do 
+  v` <- (return (VInr (CBName (denoteCBName env v))))
+  case v` of
+    VInl val -> denoteCBName (extendEnv x val env) m1
+    VInr val -> denoteCBName (extendEnv y val env) m2
+    _ -> undefined
+=
+case (VInr (CBName (denoteCBName env v))) of
+    VInl val -> denoteCBName (extendEnv x val env) m1
+    VInr val -> denoteCBName (extendEnv y val env) m2
+    _ -> undefined
+=
+denoteCBName (Env ((y, (denoteCBName env v)) : env)) m2
+
+
+
+denoteCBName env (App v (Lambda y m2))
+=
+do
+  v1 <- thunkCBName (denoteCBName env v)
+  v2 <- denoteCBName env (Lambda y m2)
+  case v2 of
+    (VFun (Pure f)) -> apply f v1
+    _ -> undefined
+=
+do
+  v1 <- thunkCBName (denoteCBName env v)
+  v2 <- denoteCBName env (Lambda y m2)
+  case v2 of
+    (VFun (Pure f)) -> apply f v1
+    _ -> undefined
+
+do
+  v1 <- denoteCBName env v
+  v2 <- denoteCBName env (Lambda y m2)
+  case v2 of
+    (VFun (Pure f)) -> apply f v2
+    _ -> undefined
+
+=
+  v1 <- denoteCBName env v
+  v2 <- Pure (VFun (Pure (Fun (\v -> do
+    v' <- thunkCBName (Pure v)
+    denoteCBName (extendEnv y v' env) m2
+  ))))
+  case v2 of
+    (VFun (Pure f)) -> apply f v2
+    _ -> undefined
+=
+  apply (Fun (\v -> do
+    v' <- thunkCBName (Pure v)
+    denoteCBName (extendEnv y v' env) m2
+  )) (denoteCBName env v)
+=  
+  denoteCBName (extendEnv y (Pure (CBName (denoteCBName env v))) env) m2
+=
+  denoteCBName (Env ((y, (denoteCBName env v)) : env)) m2
+
+  
+
+
+-----------------------------------------------------
+---- Let y (Let x m n) p === Let x m (Let y n p) ----
+-----------------------------------------------------
+
+
+
+denoteCBName env (Let y (Let x m n) p)
+=
+do
+  v <- thunkCBName (denoteCBName env (Let x m n))
+  denoteCBName (extendEnv y v env) p
+=
+do
+  v <- thunkCBName (do
+    v <- thunkCBName (denoteCBName env m)
+    denoteCBName (extendEnv x v env) n)
+  denoteCBName (extendEnv y v env) p
+=
+do
+  v <- thunkCBName (do
+    v <- Pure (CBName (denoteCBName env m))
+    denoteCBName (extendEnv x v env) n)
+  denoteCBName (extendEnv y v env) p
+=
+do 
+  v <- thunkCBName (do
+    v <- Pure (CBName (denoteCBName env m))
+    denoteCBName (extendEnv x v env) n)
+  denoteCBName (extendEnv y v env) p
+=
+do 
+  v <- thunkCBName (denoteCBName (extendEnv x (CBName (denoteCBName env m)) env) n)
+  denoteCBName (extendEnv y v env) p
+=
+denoteCBName (extendEnv y (CBName (denoteCBName (extendEnv x (CBName (denoteCBName env m)) env) n)) env) p
+
+
+denoteCBName env (Let x m (Let y n p))
+=
+do
+  v <- thunkCBName (denoteCBName env m)
+  denoteCBName (extendEnv x v env) (Let y n p)
+=
+do
+  v <- Pure (CBName (denoteCBName env m))
+  denoteCBName (extendEnv x v env) (Let y n p)
+=
+denoteCBName (extendEnv x (CBName (denoteCBName env m)) env) (Let y n p)
+=
+do 
+  v <- thunkCBName (denoteCBName (extendEnv x (CBName (denoteCBName env m)) env) n)
+  denoteCBName (extendEnv y v env) p
+=
+denoteCBName (extendEnv y (CBName (denoteCBName (extendEnv x (CBName (denoteCBName env m)) env) n)) env) p
+
+
+-------------------------------------------------------
+---- Lambda y (Let x m n) === Let x m (Lambda y n) ----
+-------------------------------------------------------
+
+
+denoteCBName env (Lambda y (Let x m n))
+=
+Pure $ VFun (lam (\v -> denoteCBName (extendEnv y v env) (Let x m n)))
+=
+Pure $ VFun (lam (\v -> do
+  v <- thunkCBName (denoteCBName (extendEnv y v env) m)
+  denoteCBName (extendEnv x v (extendEnv y v env)) n
+))
+=
+Pure $ VFun (lam (\v -> do
+  v <- Pure (CBName (denoteCBName (extendEnv y v env) m))
+  denoteCBName (extendEnv x v (extendEnv y v env)) n
+))
+=
+Pure $ VFun (lam (\v -> denoteCBName (extendEnv x (CBName (denoteCBName (extendEnv y v env) m)) (extendEnv y v env)) n))
+
+
+
+denoteCBName env (Let x m (Lambda y n))
+=
+do
+  v <- thunkCBName (denoteCBName env m)
+  denoteCBName (extendEnv x v env) (Lambda y n)
+=
+do
+  v <- Pure (CBName (denoteCBName env m))
+  denoteCBName (extendEnv x v env) (Lambda y n)
+=
+denoteCBName (extendEnv x (CBName (denoteCBName env m)) env) (Lambda y n)
+=
+Pure $ VFun (lam (\v -> denoteCBName (extendEnv y v (extendEnv x (CBName (denoteCBName env m)) env)) n))
